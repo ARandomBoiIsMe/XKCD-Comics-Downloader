@@ -2,6 +2,7 @@
 using System.IO;
 using HtmlAgilityPack;
 using System.Net;
+using System.Threading;
 
 namespace XKCD_Downloader
 {
@@ -23,8 +24,20 @@ namespace XKCD_Downloader
             //Loops until it reaches the first comic
             do
             {
-                //Loads each comic's page and stores the HTML for parsing
-                doc = web.Load(link);
+                while (true)
+                {
+                    try
+                    {
+                        //Loads each comic's page and stores the HTML for parsing
+                        doc = web.Load(link);
+                        break;
+                    }
+                    catch (WebException)
+                    {
+                        Thread.Sleep(3000);
+                        continue;
+                    }
+                }
                 
                 try
                 {
@@ -48,6 +61,7 @@ namespace XKCD_Downloader
                 string hrefVal = doc.DocumentNode.SelectSingleNode("//*[@id='middleContainer']/ul[1]/li[2]/a")
                     .GetAttributeValue("href", null);
                 link = $"https://xkcd.com{hrefVal}";
+                Thread.Sleep(2000);
 
             } while (!link.EndsWith("#"));
         }
