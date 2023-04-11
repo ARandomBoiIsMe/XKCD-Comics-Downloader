@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
-using HtmlAgilityPack;
-using System.Net;
+using System.Net.Http;
 using System.Threading;
 
 namespace XKCD_Downloader
@@ -15,7 +14,6 @@ namespace XKCD_Downloader
 
             string link = "https://xkcd.com";
 
-            //Gets user path of user that's currently logged
             string userPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             string dirName = Path.Combine(userPath, @"Pictures\XKCD Comics");
             if (!Directory.Exists(dirName))
