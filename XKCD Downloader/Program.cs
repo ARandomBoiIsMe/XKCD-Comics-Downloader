@@ -1,72 +1,59 @@
 ﻿using System;
 using System.IO;
 using System.Net.Http;
-using System.Threading;
+using Newtonsoft.Json;
+using System.Threading.Tasks;
 
 namespace XKCD_Downloader
 {
     class Program
     {
-        static void Main(string[] args)
+        static async Task Main()
         {
-            var doc = new HtmlDocument();
-            var web = new HtmlWeb();
+            var client = new HttpClient();
 
-            string link = "https://xkcd.com";
+            string comicURL = "https://xkcd.com/info.0.json";
+            var comic = await getComicDetails(client, comicURL);
 
             string userPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             string dirName = Path.Combine(userPath, @"Pictures\XKCD Comics");
             if (!Directory.Exists(dirName))
                 Directory.CreateDirectory(dirName);
 
-            //Loops until it reaches the first comic
+            //Moves through comics from the most recent to the first
             do
             {
-                while (true)
-                {
-                    try
-                    {
-                        //Loads each comic's page and stores the HTML for parsing
-                        doc = web.Load(link);
-                        break;
-                    }
-                    catch (WebException)
-                    {
-                        Thread.Sleep(3000);
-                        continue;
-                    }
-                }
                 
-                try
-                {
-                    //Gets comic's details
-                    string comicName = doc.DocumentNode.SelectSingleNode("//div[@id='comic']//img")
-                        .GetAttributeValue("alt", null);
-                    string comicNumber = doc.DocumentNode.SelectSingleNode("//div[@id='middleContainer']/a[1]")
-                        .InnerText.Split('/')[3];
-                    string comicImage = doc.DocumentNode.SelectSingleNode("//div[@id='comic']//img")
-                        .GetAttributeValue("src", null);
+                await DownloadComic(client, comic.img, comic.num, comic.safe_title, dirName);
 
-                    //Downloads comic
-                    DownloadComic(comicImage, comicNumber, comicName, dirName);
-                }
-                catch (NullReferenceException)
-                {
-                    Console.WriteLine("Interactive comic detected. Skipping...");
-                }
-                
-                //Gets link to previous comic
-                string hrefVal = doc.DocumentNode.SelectSingleNode("//*[@id='middleContainer']/ul[1]/li[2]/a")
-                    .GetAttributeValue("href", null);
-                link = $"https://xkcd.com{hrefVal}";
-                Thread.Sleep(2000);
+                comicURL = $"https://xkcd.com/{ int.Parse(comic.num) - 1 }/info.0.json";
+                comic = await getComicDetails(client, comicURL);
 
-            } while (!link.EndsWith("#"));
+            } while (comic != null);
+
+            Console.WriteLine("All XKCD comics have been downloaded (Probably)." +
+                            "\nPress any key to exit the program.");
+            Console.ReadKey();
         }
 
-        static void DownloadComic(string img, string number, string name, string dir)
+        static async Task<Comic> getComicDetails(HttpClient client, string comicURL)
         {
-            //Parses names correctly
+            var response = await client.GetAsync(comicURL);
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            try
+            {
+                var comic = JsonConvert.DeserializeObject<Comic>(responseBody);
+                return comic;
+            }
+            catch (JsonReaderException)
+            {
+                return null;
+            }
+        }
+
+        static async Task DownloadComic(HttpClient client, string img, string number, string name, string dir)
+        {
             name = checkName(name);
             string file = Path.Combine(dir, $"Comic #{number}, {name}.png");
 
@@ -75,7 +62,6 @@ namespace XKCD_Downloader
             if (File.Exists(file) && info.Length == 0)
                 File.Delete(file);
 
-            //Skips file if it has already been downloaded.
             else if (File.Exists(file))
             {
                 Console.WriteLine($"Comic #{number} already downloaded. Skipping...");
@@ -85,9 +71,12 @@ namespace XKCD_Downloader
             Console.WriteLine($"Downloading Comic #{number}...");
 
             //Requests comic image and saves it to the system
-            using (WebClient client = new WebClient())
+            var response = await client.GetAsync(img);
+            var imageStream = await response.Content.ReadAsStreamAsync();
+
+            using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
             {
-                client.DownloadFile($"https:{img}", file);
+                await imageStream.CopyToAsync(fileStream);
             }
 
             Console.WriteLine($"Successfully downloaded to {dir}.");
