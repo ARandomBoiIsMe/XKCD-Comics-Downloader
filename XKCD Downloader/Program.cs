@@ -13,7 +13,7 @@ namespace XKCD_Downloader
             var client = new HttpClient();
 
             string comicURL = "https://xkcd.com/info.0.json";
-            var comic = await getComicDetails(client, comicURL);
+            var comic = await GetComicDetails(client, comicURL);
 
             string userPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             string dirName = Path.Combine(userPath, @"Pictures\XKCD Comics");
@@ -22,12 +22,11 @@ namespace XKCD_Downloader
 
             //Moves through comics from the most recent to the first
             do
-            {
-                
-                await DownloadComic(client, comic.img, comic.num, comic.safe_title, dirName);
+            {                
+                await DownloadComic(comic, client, dirName);
 
                 comicURL = $"https://xkcd.com/{ int.Parse(comic.num) - 1 }/info.0.json";
-                comic = await getComicDetails(client, comicURL);
+                comic = await GetComicDetails(client, comicURL);
 
             } while (comic != null);
 
@@ -36,7 +35,7 @@ namespace XKCD_Downloader
             Console.ReadKey();
         }
 
-        static async Task<Comic> getComicDetails(HttpClient client, string comicURL)
+        static async Task<Comic> GetComicDetails(HttpClient client, string comicURL)
         {
             var response = await client.GetAsync(comicURL);
             var responseBody = await response.Content.ReadAsStringAsync();
@@ -52,10 +51,10 @@ namespace XKCD_Downloader
             }
         }
 
-        static async Task DownloadComic(HttpClient client, string img, string number, string name, string dir)
+        static async Task DownloadComic(Comic comic, HttpClient client, string dir)
         {
-            name = checkName(name);
-            string file = Path.Combine(dir, $"Comic #{number}, {name}.png");
+            comic.safe_title = CheckName(comic.safe_title);
+            string file = Path.Combine(dir, $"Comic #{comic.num}, {comic.safe_title}.png");
 
             //Deletes file if it's empty (has no image stored)
             FileInfo info = new FileInfo(file);
@@ -64,14 +63,14 @@ namespace XKCD_Downloader
 
             else if (File.Exists(file))
             {
-                Console.WriteLine($"Comic #{number} already downloaded. Skipping...");
+                Console.WriteLine($"Comic #{comic.num} already downloaded. Skipping...");
                 return;
             }
 
-            Console.WriteLine($"Downloading Comic #{number}...");
+            Console.WriteLine($"Downloading Comic #{comic.num}...");
 
             //Requests comic image and saves it to the system
-            var response = await client.GetAsync(img);
+            var response = await client.GetAsync(comic.img);
             var imageStream = await response.Content.ReadAsStreamAsync();
 
             using (FileStream fileStream = new FileStream(file, FileMode.Create, FileAccess.Write))
@@ -82,7 +81,7 @@ namespace XKCD_Downloader
             Console.WriteLine($"Successfully downloaded to {dir}.");
         }
 
-        static string checkName (string name)
+        static string CheckName (string name)
         {
             char[] illegalChars = Path.GetInvalidFileNameChars();
 
